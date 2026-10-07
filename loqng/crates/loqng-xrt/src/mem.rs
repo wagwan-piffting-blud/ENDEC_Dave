@@ -21,8 +21,17 @@
 use std::cell::Cell;
 
 /// Page size for the 32-bit lookup table, and the commit granularity of the
-/// 64-bit window. 4 KB either way.
+/// 64-bit window.
+#[allow(dead_code)]
 const PAGE: u32 = 4096;
+
+/// Apple Silicon pages are 16 KB, and `mprotect` refuses an address that is
+/// not aligned to one. 16 KB on every Apple target keeps one universal binary
+/// honest under Rosetta too, where the page is 4 KB and 16 KB is merely coarser.
+#[cfg(all(target_pointer_width = "64", target_vendor = "apple"))]
+const COMMIT: u32 = 16384;
+#[cfg(all(target_pointer_width = "64", not(target_vendor = "apple")))]
+const COMMIT: u32 = PAGE;
 
 // ===========================================================================
 // 64-bit: one flat window
@@ -30,7 +39,7 @@ const PAGE: u32 = 4096;
 
 #[cfg(target_pointer_width = "64")]
 mod imp {
-    use super::{Cell, PAGE};
+    use super::{Cell, COMMIT};
 
     /// 4 GB of address space, which is all a `u32` can name.
     const SPACE: usize = 1usize << 32;
@@ -94,8 +103,8 @@ mod imp {
                     "region 0x{base:08x}+{len} overlaps 0x{b:08x}+{n}"
                 );
             }
-            let first = base & !(PAGE - 1);
-            let last = ((end as u32).wrapping_add(PAGE - 1)) & !(PAGE - 1);
+            let first = base & !(COMMIT - 1);
+            let last = ((end as u32).wrapping_add(COMMIT - 1)) & !(COMMIT - 1);
             let span = if last == 0 {
                 SPACE - first as usize
             } else {
@@ -158,15 +167,23 @@ mod imp {
         }
     }
 
-    // Linux, and only on a 64-bit host, which is why `off` being musl's
+    // Linux and macOS, and only on a 64-bit host, which is why `off` being a
     // 64-bit `off_t` is safe to assume: the 32-bit targets never reach here.
+    // The flags are where the two differ; Darwin ignores MAP_NORESERVE and
+    // never overcommits a PROT_NONE mapping anyway.
     #[cfg(unix)]
     mod sys {
         const PROT_NONE: i32 = 0;
         const PROT_READ: i32 = 1;
         const PROT_WRITE: i32 = 2;
         const MAP_PRIVATE: i32 = 2;
+        #[cfg(target_vendor = "apple")]
+        const MAP_ANONYMOUS: i32 = 0x1000;
+        #[cfg(target_vendor = "apple")]
+        const MAP_NORESERVE: i32 = 0x40;
+        #[cfg(not(target_vendor = "apple"))]
         const MAP_ANONYMOUS: i32 = 0x20;
+        #[cfg(not(target_vendor = "apple"))]
         const MAP_NORESERVE: i32 = 0x4000;
 
         extern "C" {

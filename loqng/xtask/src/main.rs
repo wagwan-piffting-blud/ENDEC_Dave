@@ -161,12 +161,12 @@ pub fn flag(args: &[String], name: &str) -> Option<String> {
 
 /// Locate the engine and the voice tree.
 ///
-/// `loqrs` is the sibling repo that holds both, so the defaults point there.
-/// `$LOQ_LIB` and `$LOQ_DATA` override, matching the environment variables
-/// `loqdave` already honours.
+/// The defaults are `engine/` in the workspace, the same tree
+/// `loqng-voice/build.rs` bakes in. `$LOQ_LIB` and `$LOQ_DATA` override,
+/// matching the environment variables `loqdave` already honours.
 fn resolve_paths(args: &[String]) -> Result<Paths, String> {
     let root = workspace_root();
-    let sibling = root.parent().unwrap_or(&root).join("loqrs").join("engine");
+    let sibling = root.join("engine");
 
     let lib_dir = flag(args, "--lib")
         .map(PathBuf::from)

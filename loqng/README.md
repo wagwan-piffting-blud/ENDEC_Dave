@@ -40,9 +40,12 @@ loqdave-linux-amd64          x86_64-unknown-linux-musl       for x86_64 Linux (a
 loqdave-linux-arm64          aarch64-unknown-linux-musl      for Pi 3/4/5, Zero 2 W
 loqdave-linux-armv7          armv7-unknown-linux-musleabihf  for Pi 2/3/4, 32-bit
 loqdave-linux-armv6          arm-unknown-linux-musleabihf    for Pi 1, Zero / Zero W
+loqdave-macos-universal      aarch64 + x86_64-apple-darwin   for Apple Silicon and Intel Macs, one file
 ```
 
 `build_targets.ps1` builds all five from Windows with **no cross toolchain** - the Linux targets are static musl, linked by Rust's own bundled `rust-lld`. Copy one anywhere and run it.
+
+macOS has to be linked on a Mac. `build_targets.ps1 -Mac user@host:/path/to/this/checkout` runs `build_macos.sh` there over ssh, which builds both slices, `lipo`s them into one binary and runs the corpus through each - the Intel slice under Rosetta. It is then signed with a Developer ID (hardened runtime) and notarized, so Gatekeeper opens it without a warning; a bare Mach-O cannot be stapled, so the first run checks the ticket online. The login keychain is locked over ssh, so the script asks for the Mac password to sign. The universal file is 74 MB because each slice carries its own copy of the voice tree. On an M4, a 1,040-character paragraph runs at 136x real time native and 109x under Rosetta.
 
 The 32-bit ARM targets use a different guest-memory implementation: a 64-bit host reserves the whole 4 GB guest space so a load is `base + a`, which a 32-bit host cannot do, so those fall back to a page table at roughly half the throughput. The audio is byte-identical either way, and `tools/packcheck.py --run` checks every target under qemu.
 
