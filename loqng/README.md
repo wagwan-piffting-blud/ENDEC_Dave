@@ -36,6 +36,7 @@ loqdave --serve < requests.tsv             # one request per line, warm
 
 ```text
 loqdave-windows-amd64.exe    x86_64-pc-windows-msvc          for Windows 10/11 64-bit
+loqdave-windows-x86.exe      i686-pc-windows-msvc            for 32-bit Windows
 loqdave-linux-amd64          x86_64-unknown-linux-musl       for x86_64 Linux (aka most desktop/server distros)
 loqdave-linux-arm64          aarch64-unknown-linux-musl      for Pi 3/4/5, Zero 2 W
 loqdave-linux-armv7          armv7-unknown-linux-musleabihf  for Pi 2/3/4, 32-bit
@@ -43,11 +44,11 @@ loqdave-linux-armv6          arm-unknown-linux-musleabihf    for Pi 1, Zero / Ze
 loqdave-macos-universal      aarch64 + x86_64-apple-darwin   for Apple Silicon and Intel Macs, one file
 ```
 
-`build_targets.ps1` builds all five from Windows with **no cross toolchain** - the Linux targets are static musl, linked by Rust's own bundled `rust-lld`. Copy one anywhere and run it.
+`build_targets.ps1` builds all seven from Windows with **no cross toolchain** - the Linux targets are static musl, linked by Rust's own bundled `rust-lld`, and the Windows ones link the C runtime statically. Copy one anywhere and run it. `-NoMac` skips macOS, `-Only <target>` builds one. `-Check` renders a set of phrases (16 kHz, 8 kHz, raw) through every binary - Linux under WSL and `qemu-user`, both macOS slices on the Mac - and demands each output's SHA256 equal `windows-amd64`'s; `-NoBuild -Check` checks what is already in `dist/`.
 
-macOS has to be linked on a Mac. `build_targets.ps1 -Mac user@host:/path/to/this/checkout` runs `build_macos.sh` there over ssh, which builds both slices, `lipo`s them into one binary and runs the corpus through each - the Intel slice under Rosetta. It is then signed with a Developer ID (hardened runtime) and notarized, so Gatekeeper opens it without a warning; a bare Mach-O cannot be stapled, so the first run checks the ticket online. The login keychain is locked over ssh, so the script asks for the Mac password to sign. The universal file is 74 MB because each slice carries its own copy of the voice tree. On an M4, a 1,040-character paragraph runs at 136x real time native and 109x under Rosetta.
+macOS has to be linked on a Mac. `build_targets.ps1` runs `build_macos.sh` over ssh on `-MacHost` (default `wags@192.168.1.86`) in `-MacPath` (default `/Volumes/LocalUser/Documents/loq/loqng`, this checkout as the Mac sees it), which builds both slices, `lipo`s them into one binary and runs the corpus through each - the Intel slice under Rosetta. It is then signed with a Developer ID (hardened runtime) and notarized, so Gatekeeper opens it without a warning; a bare Mach-O cannot be stapled, so the first run checks the ticket online. The login keychain is locked over ssh, so the script asks for the Mac password before it builds. The signing identity and notary API key are stored at the top of `build_macos.sh`. The universal file is 74 MB because each slice carries its own copy of the voice tree. On an M4, a 1,040-character paragraph runs at 136x real time native and 109x under Rosetta.
 
-The 32-bit ARM targets use a different guest-memory implementation: a 64-bit host reserves the whole 4 GB guest space so a load is `base + a`, which a 32-bit host cannot do, so those fall back to a page table at roughly half the throughput. The audio is byte-identical either way, and `tools/packcheck.py --run` checks every target under qemu.
+The 32-bit targets (ARM and Windows x86) use a different guest-memory implementation: a 64-bit host reserves the whole 4 GB guest space so a load is `base + a`, which a 32-bit host cannot do, so those fall back to a page table at roughly half the throughput. The audio is byte-identical either way, and `tools/packcheck.py --run` checks every target under qemu.
 
 ## Speed
 

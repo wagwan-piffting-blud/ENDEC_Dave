@@ -7,5 +7,4 @@ build/
 *.raw
 *.pcm
 __pycache__/
-build_targets.ps1
 pgo.bat
